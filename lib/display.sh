@@ -4,7 +4,6 @@
 
 # Source required libraries
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/colors.sh"
 source "$SCRIPT_DIR/cpu_temp.sh"
 source "$SCRIPT_DIR/ram_temp.sh"
 source "$SCRIPT_DIR/drive_temp.sh"
@@ -87,16 +86,16 @@ create_temp_graph() {
   local temp_str="$1"
   local temp_type="${2:-cpu}"
   local max_width="${3:-40}"
-  
+
   # Extract numeric value from temperature string
   local temp_num=$(echo "$temp_str" | grep -o '[0-9]\+' | head -1)
-  
+
   # If no numeric value found, return N/A
   if [[ $temp_num == '' ]]; then
     echo "N/A"
     return
   fi
-  
+
   # Define max temperature for scaling based on component type
   local max_temp
   if [[ $temp_type == "drive" ]]; then
@@ -106,13 +105,13 @@ create_temp_graph() {
   else
     max_temp=100  # CPU
   fi
-  
+
   # Calculate bar width (percentage of max_width)
   local bar_width=$(( (temp_num * max_width) / max_temp ))
   if [[ $bar_width -gt $max_width ]]; then
     bar_width=$max_width
   fi
-  
+
   # Define colors directly for better control
   local RESET='\033[0m'
   local GREEN='\033[32m'     # Cool - good temps
@@ -120,7 +119,7 @@ create_temp_graph() {
   local ORANGE='\033[38;5;208m'  # Hot - concerning temps
   local RED='\033[31m'       # Very hot - dangerous temps
   local BOLD_RED='\033[1;31m'    # Critical - immediate attention
-  
+
   # Set temperature thresholds based on component type
   local cool_max warm_max hot_max critical_max
   if [[ $temp_type == "drive" ]]; then
@@ -140,7 +139,7 @@ create_temp_graph() {
     hot_max=85
     critical_max=95
   fi
-  
+
   # Choose color and character based on temperature
   local color
   local fill_char
@@ -160,35 +159,35 @@ create_temp_graph() {
     color=$BOLD_RED
     fill_char="░"  # Light pattern for critical temps (more alarming)
   fi
-  
+
   # Create the colored bar
   local filled_bar=""
   local empty_bar=""
   local empty_char="─"
-  
+
   # Build filled portion with color
   for ((i=0; i<bar_width; i++)); do
     filled_bar+="$fill_char"
   done
-  
+
   # Build empty portion
   for ((i=bar_width; i<max_width; i++)); do
     empty_bar+="$empty_char"
   done
-  
+
   # Apply color to filled portion
   local colored_filled="${color}${filled_bar}${RESET}"
-  
+
   # Create percentage indicator with color
   local percentage=$(( (temp_num * 100) / max_temp ))
   if [[ $percentage -gt 100 ]]; then
     percentage=100
   fi
-  
+
   # Color the temperature string and percentage based on level
   local colored_temp="${color}${temp_str}${RESET}"
   local colored_percentage="${color}(${percentage}%)${RESET}"
-  
+
   # Return the formatted graph with colored components
   echo "[${colored_filled}${empty_bar}] ${colored_temp} ${colored_percentage}"
 }
@@ -207,14 +206,14 @@ update_temperature_values() {
       if [[ $line == *"temperature:"* ]]; then
         local temp_part=$(echo "$line" | awk -F'temperature: ' '{print $2}')
         local label_part=$(echo "$line" | awk -F'temperature: ' '{print $1}')
-        
+
         # Calculate available width for the graph (leave space for label, brackets, temp and percentage)
         local label_width=${#label_part}
         local available_width=$((term_cols - label_width - 35))  # 35 chars for margins, brackets, temp and percentage
         if [[ $available_width -lt 15 ]]; then
           available_width=15
         fi
-        
+
         # Create temperature graph
         local temp_graph=$(create_temp_graph "$temp_part" "cpu" "$available_width")
         local full_line="${label_part}${temp_graph}"
@@ -244,7 +243,7 @@ update_temperature_values() {
     fi
   fi
 
-  # Update RAM temperatures
+  # Update RAM temperatures with graphs
   current_row=14
 
   local ram_temperatures=$(get_ram_temperature)
@@ -254,8 +253,17 @@ update_temperature_values() {
       if [[ $line == *"temperature:"* ]]; then
         local temp_part=$(echo "$line" | awk -F'temperature: ' '{print $2}')
         local label_part=$(echo "$line" | awk -F'temperature: ' '{print $1}')
-        local colored_temp=$(colorize_temperature "$temp_part" "ram")
-        local full_line="${label_part}temperature: ${colored_temp}"
+
+        # Calculate available width for the graph (leave space for label, brackets, temp and percentage)
+        local label_width=${#label_part}
+        local available_width=$((term_cols - label_width - 35))  # 35 chars for margins, brackets, temp and percentage
+        if [[ $available_width -lt 15 ]]; then
+          available_width=15
+        fi
+
+        # Create temperature graph
+        local temp_graph=$(create_temp_graph "$temp_part" "ram" "$available_width")
+        local full_line="${label_part}${temp_graph}"
 
         # Only update if value changed
         if [[ "${PREV_RAM_TEMPS[$line_num]}" != "$full_line" ]]; then
@@ -285,7 +293,7 @@ update_temperature_values() {
   # Update Storage temperatures
   current_row=21
 
-  # SATA drives
+  # SATA drives with graphs
   local line_offset=0
   local sata_found=false
   for drive in /dev/sd?; do
@@ -294,8 +302,19 @@ update_temperature_values() {
       local drive_name=$(get_drive_name "$drive")
       local full_line
       if [[ $temperature != '' ]]; then
-        local colored_temp=$(colorize_temperature "$temperature°C" "drive")
-        full_line="SATA $drive ($drive_name): ${colored_temp}"
+        local temp_str="${temperature}°C"
+        local label="SATA $drive ($drive_name): "
+
+        # Calculate available width for the graph
+        local label_width=${#label}
+        local available_width=$((term_cols - label_width - 35))  # 35 chars for margins, brackets, temp and percentage
+        if [[ $available_width -lt 15 ]]; then
+          available_width=15
+        fi
+
+        # Create temperature graph
+        local temp_graph=$(create_temp_graph "$temp_str" "drive" "$available_width")
+        full_line="${label}${temp_graph}"
       else
         full_line="SATA $drive ($drive_name): N/A"
       fi
@@ -315,7 +334,7 @@ update_temperature_values() {
     fi
   done
 
-  # NVMe drives
+  # NVMe drives with graphs
   local nvme_found=false
   for drive in /dev/nvme?n?; do
     if [ -e "$drive" ]; then
@@ -323,8 +342,19 @@ update_temperature_values() {
       local drive_name=$(get_drive_name "$drive")
       local full_line
       if [[ $temperature != '' ]]; then
-        local colored_temp=$(colorize_temperature "$temperature°C" "drive")
-        full_line="NVMe $drive ($drive_name): ${colored_temp}"
+        local temp_str="${temperature}°C"
+        local label="NVMe $drive ($drive_name): "
+
+        # Calculate available width for the graph
+        local label_width=${#label}
+        local available_width=$((term_cols - label_width - 35))  # 35 chars for margins, brackets, temp and percentage
+        if [[ $available_width -lt 15 ]]; then
+          available_width=15
+        fi
+
+        # Create temperature graph
+        local temp_graph=$(create_temp_graph "$temp_str" "drive" "$available_width")
+        full_line="${label}${temp_graph}"
       else
         full_line="NVMe $drive ($drive_name): N/A"
       fi

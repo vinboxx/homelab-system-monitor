@@ -14,7 +14,7 @@ check_sudo_access() {
   echo "This script requires sudo access for drive and memory temperature monitoring."
   echo "Please enter your password to continue..."
   echo ""
-  
+
   # Pre-authenticate sudo to avoid prompts during monitoring
   if sudo -v; then
     echo "✓ Sudo access granted. Starting temperature monitor..."
@@ -78,7 +78,7 @@ while true; do
   if [[ $((loop_count % 60)) -eq 0 ]]; then
     sudo -v >/dev/null 2>&1
   fi
-  
+
   # Update only the temperature values (no redraw of boxes/titles)
   update_temperature_values
 
@@ -86,7 +86,7 @@ while true; do
   tput cup $((TERM_ROWS - 2)) 0
   tput el  # Clear to end of line
   echo "Updated: $(date '+%Y-%m-%d %H:%M:%S') | Press Ctrl+C to exit"
-  
+
   ((loop_count++))
   sleep 5
 done

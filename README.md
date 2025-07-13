@@ -1,6 +1,6 @@
 # System Temperature Monitor
 
-A modular system temperature monitoring tool for CPU, RAM, and drive temperatures with colored output.
+A modular system temperature monitoring tool for CPU, RAM, and drive temperatures with colored graph visualization and real-time updates.
 
 ## File Structure
 
@@ -8,11 +8,10 @@ A modular system temperature monitoring tool for CPU, RAM, and drive temperature
 system-monitor/
 ├── system-monitor.sh          # Main script
 ├── lib/                        # Library modules
-│   ├── colors.sh               # Color formatting functions
 │   ├── cpu_temp.sh             # CPU temperature detection
 │   ├── ram_temp.sh             # RAM temperature detection
 │   ├── drive_temp.sh           # Drive temperature detection
-│   └── display.sh              # Output formatting and display
+│   └── display.sh              # Output formatting, graphs, and display
 └── README.md                   # This file
 ```
 
@@ -20,15 +19,16 @@ system-monitor/
 
 ### `system-monitor.sh` (Main Script)
 - Entry point for the application
-- Handles command-line arguments (`--refresh` / `-r`)
-- Controls the monitoring loop and signal handling
-- Sources all required library modules
+- Handles sudo authentication upfront
+- Controls the continuous monitoring with ncurses-like interface
+- Real-time temperature graph updates
 
-### `lib/colors.sh`
-- Color formatting utilities
-- Temperature-based color coding (green, yellow, orange, red)
-- Separate thresholds for CPU, RAM, and drive temperatures
-
+### `lib/display.sh`
+- Advanced terminal interface with boxed layout
+- Colored temperature graph bars with visual indicators
+- Built-in color management and temperature thresholds
+- Real-time updates with minimal screen redraw
+- Sources all temperature detection modules
 ### `lib/cpu_temp.sh`
 - CPU temperature detection functions
 - Supports multiple methods:
@@ -55,47 +55,73 @@ system-monitor/
 - Uses smartctl for drive information and temperature
 - Supports various drive model naming patterns
 
-### `lib/display.sh`
-- Output formatting and display functions
-- Single-run mode display
-- Continuous monitoring display (buffered output)
-- Sources all other library modules
+## Features
+
+### Visual Graph Interface
+- **Real-time Temperature Graphs**: Horizontal bar graphs for all temperature readings
+- **Color-coded Visualization**: Different colors and patterns based on temperature levels
+- **Component-specific Scaling**: Each component type has appropriate maximum temperatures
+- **Live Updates**: Only changed values are redrawn for smooth performance
+- **Boxed Layout**: Clean terminal interface with section boxes and titles
+
+### Graph Visualization
+- **Progress Bars**: `[████████████───────]` showing temperature as percentage of maximum
+- **Color Coding**: Green (cool) → Yellow (warm) → Orange (hot) → Red (critical)
+- **Visual Patterns**: Different fill characters for different temperature ranges
+- **Percentage Display**: Shows both actual temperature and percentage of maximum
+- **Responsive Width**: Graphs adapt to terminal size automatically
 
 ## Usage
 
 ```bash
-# Single temperature check
+# Run the temperature monitor (requires sudo for drive/memory access)
 ./system-monitor.sh
-
-# Continuous monitoring (refreshes every 3 seconds)
-./system-monitor.sh --refresh
-./system-monitor.sh -r
 ```
+
+The script will:
+1. Request sudo authentication upfront
+2. Display a real-time interface with temperature graphs
+3. Update temperatures every 5 seconds
+4. Show color-coded graphs for CPU, RAM, and storage temperatures
+5. Exit cleanly with Ctrl+C
 
 ## Sample Output
 
 ```
-=== CPU Temperature(s) ===
-CPU Core0 temperature: +51.0°C
-CPU Core1 temperature: +51.0°C
-CPU Core2 temperature: +51.0°C
-CPU Core3 temperature: +51.0°C
-
-=== RAM Temperature(s) ===
-Memory Controller Thermal Zone 1 (x86_pkg_temp) temperature: 52°C
-
-=== SATA Drive Temperature(s) ===
-/dev/sda (HGST HUS724040ALA640) temperature: 57°C
-/dev/sdb (WDC WD20EZRZ-00Z5HB0) temperature: 48°C
-
-=== NVMe Drive Temperature(s) ===
-/dev/nvme0n1 (KBG40ZNS256G NVMe KIOXIA 256GB) temperature: 62°C
----
-Updated: 2025-07-13 19:27:51
-Press Ctrl+C to stop monitoring
+                        System Temperature Monitor
+════════════════════════════════════════════════════════════════════════════════
+┌────────────────────────────────────────────────────────────────────────────┐
+│ CPU Temperatures                                                           │
+│                                                                            │
+│    CPU Core0 [████████████████████████───────────────────] +57.0°C (57%)  │
+│    CPU Core1 [████████████████████████───────────────────] +57.0°C (57%)  │
+│    CPU Core2 [████████████████████████───────────────────] +57.0°C (57%)  │
+│    CPU Core3 [████████████████████████───────────────────] +57.0°C (57%)  │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ RAM Temperatures                                                           │
+│                                                                            │
+│    Memory Controller [▓▓▓▓▓▓▓▓▓▓─────] 58°C (72%)                         │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Storage Temperatures                                                       │
+│                                                                            │
+│    SATA /dev/sda: [▒▒▒▒▒▒▒▒▒▒▒▒───] 57°C (81%)                           │
+│    SATA /dev/sdb: [▓▓▓▓▓▓▓▓▓▓─────] 47°C (67%)                           │
+│    NVMe /dev/nvme0n1: [▒▒▒▒▒▒▒▒▒▒▒▒▒──] 62°C (88%)                       │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+Updated: 2025-07-13 22:14:41 | Press Ctrl+C to exit
 ```
 
-*Note: Temperatures are color-coded based on the thresholds above.*
+### Graph Legend
+- `█` Solid blocks: Safe/warm temperatures (green/yellow)
+- `▓` Dense pattern: Hot temperatures (orange)
+- `▒` Medium pattern: Very hot temperatures (red)
+- `░` Light pattern: Critical temperatures (bold red)
+- `─` Empty sections: Remaining temperature capacity
 
 ## Dependencies
 
@@ -157,10 +183,12 @@ If no RAM temperature sensors are available, the system will display "N/A (senso
 
 ## Benefits of Modular Structure
 
-1. **Maintainability**: Each module has a single responsibility
-2. **Reusability**: Functions can be used independently
-3. **Testing**: Individual modules can be tested separately
-4. **Extensibility**: New temperature sources can be added easily (like the new RAM monitoring)
-5. **Readability**: Smaller, focused files are easier to understand
-6. **Cross-platform Support**: Different detection methods for various hardware configurations
-7. **Enterprise Ready**: Supports enterprise hardware features (IPMI, I2C sensors)
+1. **Real-time Visualization**: Live temperature graphs with color-coded visual feedback
+2. **Maintainability**: Each module has a single responsibility
+3. **Reusability**: Functions can be used independently
+4. **Performance**: Efficient updates with minimal screen redraw
+5. **User Experience**: Clean terminal interface with boxed layout
+6. **Extensibility**: New temperature sources can be added easily
+7. **Cross-platform Support**: Different detection methods for various hardware
+8. **Enterprise Ready**: Supports enterprise hardware features (IPMI, I2C sensors)
+9. **Security**: Upfront sudo authentication prevents mid-session prompts
