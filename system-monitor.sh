@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# System Temperature Monitor - Main Script
-# This script monitors CPU and drive temperatures with colored output
+# System Temperature Monitor - Main Script with ncurses support
+# This script monitors CPU and drive temperatures with advanced terminal control
 
 # Get the script directory for relative paths
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -9,29 +9,54 @@ SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # Source all required library functions
 source "$SCRIPT_DIR/lib/display.sh"
 
-# Trap Ctrl+C to exit gracefully
-trap 'echo -e "\n\nMonitoring stopped."; exit 0' SIGINT
+# Initialize ncurses-like terminal settings
+init_terminal() {
+  # Hide cursor
+  tput civis
+  # Clear screen
+  tput clear
+  # Enable alternative screen buffer
+  tput smcup
+  # Set up colors if supported
+  if [[ $(tput colors) -ge 8 ]]; then
+    export COLORS_ENABLED=true
+  else
+    export COLORS_ENABLED=false
+  fi
+}
 
-# Check if refresh mode is requested
-if [[ "$1" == "--refresh" ]] || [[ "$1" == "-r" ]]; then
-  echo "Starting temperature monitoring (refreshing every 3 seconds)..."
-  echo "Press Ctrl+C to stop"
-  echo
+# Restore terminal settings
+cleanup_terminal() {
+  # Show cursor
+  tput cnorm
+  # Restore normal screen buffer
+  tput rmcup
+  # Reset terminal
+  tput sgr0
+  echo -e "\n\nMonitoring stopped."
+  exit 0
+}
 
-  while true; do
-    # Generate all output at once, then display it instantly
-    full_output=$(generate_temperature_output)
+# Trap Ctrl+C and other signals to exit gracefully
+trap cleanup_terminal SIGINT SIGTERM EXIT
 
-    # Move to top and display all content at once
-    printf '\033[H\033[2J'  # Clear screen and move to top
-    echo "$full_output"
+# Initialize terminal
+init_terminal
 
-    # Wait 3 seconds before next update
-    sleep 3
-  done
-else
-  # Single run mode (original behavior)
-  display_temperatures
-  echo
-  echo "Tip: Use './system-monitor.sh --refresh' or './system-monitor.sh -r' for continuous monitoring"
-fi
+# Get terminal dimensions
+TERM_COLS=$(tput cols)
+TERM_ROWS=$(tput lines)
+
+# Draw the static interface once
+display_static_interface
+
+# Start continuous temperature monitoring
+while true; do
+  # Update only the temperature values (no redraw of boxes/titles)
+  update_temperature_values
+
+  # Update status line at bottom
+  tput cup $((TERM_ROWS - 2)) 0
+  tput el  # Clear to end of line
+  echo "Updated: $(date '+%Y-%m-%d %H:%M:%S') | Press Ctrl+C to exit"
+done
