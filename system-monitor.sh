@@ -58,8 +58,39 @@ cleanup_terminal() {
   exit 0
 }
 
+# Handle terminal resize
+handle_resize() {
+  # Get new terminal dimensions
+  TERM_COLS=$(tput cols)
+  TERM_ROWS=$(tput lines)
+
+  # Check minimum terminal size
+  if [[ $TERM_COLS -lt 80 || $TERM_ROWS -lt 30 ]]; then
+    tput clear
+    tput cup 0 0
+    echo "Terminal too small!"
+    echo "Minimum size required: 80x30"
+    echo "Current size: ${TERM_COLS}x${TERM_ROWS}"
+    echo "Please resize your terminal and the display will update automatically."
+    return
+  fi
+
+  # Clear all cached values to force redraw
+  unset PREV_CPU_TEMPS
+  unset PREV_RAM_TEMPS
+  unset PREV_DRIVE_TEMPS
+  declare -gA PREV_CPU_TEMPS
+  declare -gA PREV_RAM_TEMPS
+  declare -gA PREV_DRIVE_TEMPS
+
+  # Redraw the complete interface
+  display_static_interface
+}
+
 # Trap Ctrl+C and other signals to exit gracefully
 trap cleanup_terminal SIGINT SIGTERM EXIT
+# Trap window resize signal
+trap handle_resize SIGWINCH
 
 # Initialize terminal
 init_terminal
@@ -67,6 +98,16 @@ init_terminal
 # Get terminal dimensions
 TERM_COLS=$(tput cols)
 TERM_ROWS=$(tput lines)
+
+# Check initial terminal size
+if [[ $TERM_COLS -lt 80 || $TERM_ROWS -lt 30 ]]; then
+  tput clear
+  echo "Terminal too small!"
+  echo "Minimum size required: 80x30"
+  echo "Current size: ${TERM_COLS}x${TERM_ROWS}"
+  echo "Please resize your terminal and restart the script."
+  cleanup_terminal
+fi
 
 # Draw the static interface once
 display_static_interface
@@ -79,8 +120,25 @@ while true; do
     sudo -v >/dev/null 2>&1
   fi
 
+  # Update terminal dimensions in case they changed
+  TERM_COLS=$(tput cols)
+  TERM_ROWS=$(tput lines)
+
+  # Check if terminal is too small
+  if [[ $TERM_COLS -lt 80 || $TERM_ROWS -lt 30 ]]; then
+    tput clear
+    tput cup 0 0
+    echo "Terminal too small!"
+    echo "Minimum size required: 80x30"
+    echo "Current size: ${TERM_COLS}x${TERM_ROWS}"
+    echo "Please resize your terminal and the display will update automatically."
+    ((loop_count++))
+    sleep 5
+    continue
+  fi
+
   # Update only the temperature values (no redraw of boxes/titles)
-  update_temperature_values
+  update_temperature_values "$TERM_COLS"
 
   # Update status line at bottom
   tput cup $((TERM_ROWS - 2)) 0

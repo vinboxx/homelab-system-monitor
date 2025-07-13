@@ -77,9 +77,9 @@ display_static_interface() {
 
 
 # Global variables to store previous values
-declare -A PREV_CPU_TEMPS
-declare -A PREV_RAM_TEMPS
-declare -A PREV_DRIVE_TEMPS
+declare -gA PREV_CPU_TEMPS
+declare -gA PREV_RAM_TEMPS
+declare -gA PREV_DRIVE_TEMPS
 
 # Function to create a temperature graph bar
 create_temp_graph() {
@@ -194,7 +194,7 @@ create_temp_graph() {
 
 # Function to update only temperature values that have changed
 update_temperature_values() {
-  local term_cols=$(tput cols)
+  local term_cols=${1:-$(tput cols)}
 
   # Update CPU temperatures with graphs
   local current_row=5
